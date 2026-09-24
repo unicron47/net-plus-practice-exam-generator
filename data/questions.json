@@ -3899,7 +3899,7 @@
    "id": "a2f63da7e2",
    "source": "Master",
    "row": 228,
-   "text": "A technician is investigating why a PC cannot reach a file server with the IP address 192.168.8.129. Given the following TCP/IP network configuration:\nWhich of the following configurations on the PC is incorrect?",
+   "text": "A technician is investigating why a PC cannot reach a file server with the IP address 192.168.8.129. The file server is on the same LAN segment as the PC. Given the following TCP/IP network configuration:\nWhich of the following configurations on the PC is incorrect?",
    "type": "single",
    "options": [
     "Subnet mask",
@@ -3910,8 +3910,8 @@
    "answer": [
     0
    ],
-   "explanation": "The 255.255.255.192 mask limits the PC to 192.168.8.0-63, so 192.168.8.129 falls outside and the PC cannot reach it, while the gateway 192.168.8.1 still answers. The IPv4 address is fine \"- it matches the reachable gateway; widening the mask to 255.255.255.0 restores access.",
-   "exhibit": "C:\\>ipconfig /all\n\nEthernet adapter Ethernet0:\n   Connection-specific DNS Suffix  . : corp.local\n   IPv6 Address. . . . . . . . . . . : 2001:db8:8::10\n   Link-local IPv6 Address . . . . . : fe80::1c4a:9f2b:77d1:3e08%12\n   IPv4 Address. . . . . . . . . . . : 192.168.8.10\n   Subnet Mask . . . . . . . . . . . : 255.255.255.192\n   Default Gateway . . . . . . . . . : 192.168.8.1\n   DNS Servers . . . . . . . . . . . : 192.168.8.53\n\nC:\\>ping 192.168.8.1\nReply from 192.168.8.1: bytes=32 time<1ms TTL=255\n\nC:\\>ping 192.168.8.129\nReply from 192.168.8.10: Destination host unreachable.",
+   "explanation": "The 255.255.255.192 mask limits the PC to 192.168.8.0-63, so 192.168.8.129 falls outside and the PC cannot reach it, while the gateway 192.168.8.1 still answers. The IPv4 address is fine because it shares a subnet with the reachable gateway. Widening the mask to 255.255.255.0 restores access.",
+   "exhibit": "C:\\>ipconfig /all\n\nEthernet adapter Ethernet0:\n   Connection-specific DNS Suffix  . : corp.local\n   IPv6 Address. . . . . . . . . . . : 2001:db8:8::10\n   Link-local IPv6 Address . . . . . : fe80::1c4a:9f2b:77d1:3e08%12\n   IPv4 Address. . . . . . . . . . . : 192.168.8.10\n   Subnet Mask . . . . . . . . . . . : 255.255.255.192\n   Default Gateway . . . . . . . . . : 192.168.8.1\n   DNS Servers . . . . . . . . . . . : 192.168.8.53\n\nC:\\>ping 192.168.8.1\nReply from 192.168.8.1: bytes=32 time<1ms TTL=255\n\nC:\\>ping 192.168.8.129\nRequest timed out.",
    "exhibit_after": 0
   },
   {
@@ -4194,7 +4194,7 @@
    "id": "a577977907",
    "source": "Master",
    "row": 245,
-   "text": "A network administrator is troubleshooting a PC that cannot connect to the LAN. The administrator runs the ipconfig command at the command prompt and gets the following output:\nWhich of the following is misconfigured?",
+   "text": "A network administrator is troubleshooting a PC that cannot connect to the LAN. Other hosts on the LAN connect normally. The administrator runs the ipconfig command at the command prompt and gets the following output:\nWhich of the following is misconfigured?",
    "type": "single",
    "options": [
     "Subnet mask",
@@ -4205,8 +4205,8 @@
    "answer": [
     0
    ],
-   "explanation": "The /28 mask (255.255.255.240) puts this host in 192.168.1.32-47, so the default gateway at 192.168.1.1 is treated as off-net and unreachable, while every other LAN host uses /24. The physical address is a valid MAC, and the DNS server is the gateway itself, so it is not the misconfigured item.",
-   "exhibit": "C:\\>ipconfig /all\n\nEthernet adapter Ethernet0:\n\n   Connection-specific DNS Suffix  . : corp.example\n   Description . . . . . . . . . . . : Gigabit Network Connection\n   Physical Address. . . . . . . . . : 00-1B-44-3C-A2-7F\n   DHCP Enabled. . . . . . . . . . . : No\n   Autoconfiguration Enabled . . . . : Yes\n   IPv4 Address. . . . . . . . . . . : 192.168.1.45(Preferred)\n   Subnet Mask . . . . . . . . . . . : 255.255.255.240\n   Default Gateway . . . . . . . . . : 192.168.1.1\n   DNS Servers . . . . . . . . . . . : 192.168.1.1\n\nNOTE: All other hosts on this LAN use 192.168.1.0 255.255.255.0.",
+   "explanation": "The /28 mask (255.255.255.240) puts this host in 192.168.1.32-47, so the default gateway at 192.168.1.1 is treated as off-net and unreachable, while other hosts on the LAN connect normally. The physical address is a valid MAC, and the DNS server is the gateway itself, so it is not the misconfigured item.",
+   "exhibit": "C:\\>ipconfig /all\n\nEthernet adapter Ethernet0:\n\n   Connection-specific DNS Suffix  . : corp.example\n   Description . . . . . . . . . . . : Gigabit Network Connection\n   Physical Address. . . . . . . . . : 00-1B-44-3C-A2-7F\n   DHCP Enabled. . . . . . . . . . . : No\n   Autoconfiguration Enabled . . . . : Yes\n   IPv4 Address. . . . . . . . . . . : 192.168.1.45(Preferred)\n   Subnet Mask . . . . . . . . . . . : 255.255.255.240\n   Default Gateway . . . . . . . . . : 192.168.1.1\n   DNS Servers . . . . . . . . . . . : 192.168.1.1",
    "exhibit_after": 0
   },
   {
@@ -4869,7 +4869,7 @@
    "id": "d753ddfe93",
    "source": "Master",
    "row": 284,
-   "text": "A network engineer is installing hardware in a newly renovated data center. Major concerns that were addressed during the renovation included air circulation, building power redundancy, and the need for continuous monitoring. The network engineer is creating alerts based on the following operation specifications:",
+   "text": "A network engineer is installing hardware in a newly renovated data center. Major concerns that were addressed during the renovation included air circulation, building power redundancy, and the need for continuous monitoring. The network engineer is creating alerts based on the following operation specifications:\nWhich of the following alerts should the network engineer create?",
    "type": "single",
    "options": [
     "Environmental monitoring alerts for humidity greater than 95%",
@@ -5213,7 +5213,7 @@
     1
    ],
    "explanation": "Every name query goes to 172.16.99.53 and the gateway answers \"host unreachable,\" so the configured resolver is invalid and no name is ever resolved. The host is not missing a route to the website: it successfully pings and completes a TCP handshake with 203.0.113.50 by IP address.",
-   "exhibit": "$ sudo tcpdump -n -i eth0\n12:04:11 IP 10.10.5.22.51423 > 172.16.99.53.53: 41237+ A? www.site.test.\n12:04:11 IP 10.10.5.1 > 10.10.5.22: ICMP host 172.16.99.53 unreachable\n12:04:16 IP 10.10.5.22.51423 > 172.16.99.53.53: 41237+ A? www.site.test.\n12:04:16 IP 10.10.5.1 > 10.10.5.22: ICMP host 172.16.99.53 unreachable\n12:04:21 IP 10.10.5.22.51424 > 172.16.99.53.53: 8123+ A? www.site.test.\n12:04:21 IP 10.10.5.1 > 10.10.5.22: ICMP host 172.16.99.53 unreachable\n12:04:31 IP 10.10.5.22 > 203.0.113.50: ICMP echo request, id 1, seq 1\n12:04:31 IP 203.0.113.50 > 10.10.5.22: ICMP echo reply, id 1, seq 1\n12:04:32 IP 10.10.5.22.51702 > 203.0.113.50.443: Flags [S], seq 902133\n12:04:32 IP 203.0.113.50.443 > 10.10.5.22.51702: Flags [S.], seq 774021\n^C\n11 packets captured",
+   "exhibit": "$ sudo tcpdump -n -i eth0\n12:04:11 IP 10.10.5.22.51423 > 172.16.99.53.53: 41237+ A? www.site.test.\n12:04:11 IP 10.10.5.1 > 10.10.5.22: ICMP host 172.16.99.53 unreachable\n12:04:16 IP 10.10.5.22.51423 > 172.16.99.53.53: 41237+ A? www.site.test.\n12:04:16 IP 10.10.5.1 > 10.10.5.22: ICMP host 172.16.99.53 unreachable\n12:04:21 IP 10.10.5.22.51424 > 172.16.99.53.53: 8123+ A? www.site.test.\n12:04:21 IP 10.10.5.1 > 10.10.5.22: ICMP host 172.16.99.53 unreachable\n12:04:31 IP 10.10.5.22 > 203.0.113.50: ICMP echo request, id 1, seq 1\n12:04:31 IP 203.0.113.50 > 10.10.5.22: ICMP echo reply, id 1, seq 1\n12:04:32 IP 10.10.5.22.51702 > 203.0.113.50.443: Flags [S], seq 902133\n12:04:32 IP 203.0.113.50.443 > 10.10.5.22.51702: Flags [S.], seq 774021\n^C\n10 packets captured",
    "exhibit_after": 0
   },
   {
@@ -6422,10 +6422,10 @@
     "Routing protocol"
    ],
    "answer": [
-    1
+    3
    ],
-   "explanation": "The U.U.U.U response indicates the destination is unreachable because the host lacks a route to the other subnet, which requires configuring a default gateway to reach networks outside its own. NAT and routing protocols are unnecessary for this simple two-subnet connectivity issue.",
-   "exhibit": "U.U.U.U.",
+   "explanation": "The reply comes from 192.168.2.1, showing the host already reaches its router; the router itself reports \"Destination net unreachable\" because it has no route to 192.168.1.0/24, so a routing protocol (or static route) must be configured. A default gateway is not the issue since the gateway responded to the ICMP request.",
+   "exhibit": "C:\\>ping 192.168.1.100\n\nPinging 192.168.1.100 with 32 bytes of data:\nReply from 192.168.2.1: Destination net unreachable.\nReply from 192.168.2.1: Destination net unreachable.\nReply from 192.168.2.1: Destination net unreachable.\nReply from 192.168.2.1: Destination net unreachable.\n\nPing statistics for 192.168.1.100:\n    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),",
    "exhibit_after": 0
   },
   {
@@ -6693,10 +6693,10 @@
    "id": "94d6117ccc",
    "source": "Master",
    "row": 389,
-   "text": "A technician needs to configure a Linux computer for network monitoring. The technician has the following information:\nLinux computer details:\nSwitch mirror port details:\nAfter connecting the Linux computer to the mirror port on the switch, which of the following commands should the technician run on the Linux computer?",
+   "text": "A technician needs to configure a Linux computer for network monitoring. The technician has the following information:\nAfter connecting the Linux computer to the mirror port on the switch, which of the following commands should the technician run on the Linux computer?",
    "type": "single",
    "options": [
-    "ifconfig ecth0 promisc",
+    "ifconfig eth0 promisc",
     "ifconfig eth1 up",
     "ifconfig eth0 10.1.2.3",
     "ifconfig eth1 hw ether A1:B2:C3:D4:E5:F6"
@@ -6704,8 +6704,8 @@
    "answer": [
     0
    ],
-   "explanation": "For a monitoring host connected to a mirror port to capture all traffic, its NIC must be placed into promiscuous mode, which the output shows is not currently set on eth0. Bringing up eth1 or changing IP/MAC addresses does not enable packet capture.",
-   "exhibit": "Linux computer details:\neth0  HWaddr 00:1B:44:11:3A:B7  inet 10.1.2.3  mask 255.255.255.0\n      UP BROADCAST RUNNING MULTICAST  MTU:1500\n      (PROMISC flag not set)  patched to switch port Gi1/0/24\neth1  HWaddr 00:1B:44:11:3A:B8  no inet address\n      BROADCAST MULTICAST  (no carrier, no cable attached)\n\nSwitch mirror port details:\nmonitor session 1 source vlan 10 both\nmonitor session 1 destination interface Gi1/0/24\n!\ninterface GigabitEthernet1/0/24\n description Monitoring PC - eth0\n switchport mode access",
+   "explanation": "For a monitoring host connected to a mirror port to capture all traffic, its NIC must be placed into promiscuous mode, and eth0's flags (UP BROADCAST RUNNING MULTICAST) do not include PROMISC. Bringing up eth1 or changing IP/MAC addresses does not enable packet capture.",
+   "exhibit": "Linux computer details:\neth0  HWaddr 00:1B:44:11:3A:B7  inet 10.1.2.3  mask 255.255.255.0\n      UP BROADCAST RUNNING MULTICAST  MTU:1500\n      patched to switch port Gi1/0/24\neth1  HWaddr 00:1B:44:11:3A:B8  no inet address\n      BROADCAST MULTICAST  (no carrier, no cable attached)\n\nSwitch mirror port details:\nmonitor session 1 source vlan 10 both\nmonitor session 1 destination interface Gi1/0/24\n!\ninterface GigabitEthernet1/0/24\n description Monitoring PC - eth0\n switchport mode access",
    "exhibit_after": 0
   },
   {
@@ -8234,7 +8234,7 @@
    "id": "e9aac81732",
    "source": "Master",
    "row": 478,
-   "text": "A company just migrated its email service to a cloud solution. After the migration, two-thirds of the internal users were able to connect to their mailboxes, but the connection fails for the other one-third of internal users. Users working externally are not reporting any issues. The network administrator identifies the following output collected from an internal host: c:\\user> nslookup newmail.company.comNon-Authoritative answer:\nName: newmail.company.com -IPs: 3.219.13.186, 64.58.225.184, 184.168.131.243\nWhich of the following verification tasks should the network administrator perform NEXT?",
+   "text": "A company just migrated its email service to a cloud solution. After the migration, two-thirds of the internal users were able to connect to their mailboxes, but the connection fails for the other one-third of internal users. Users working externally are not reporting any issues. The network administrator identifies the following output collected from an internal host:\nWhich of the following verification tasks should the network administrator perform NEXT?",
    "type": "single",
    "options": [
     "Check the firewall ACL to verify all required IP addresses are included.",
@@ -8598,7 +8598,7 @@
     0
    ],
    "explanation": "All 82,441 input errors are giants, meaning the attached device sends frames larger than the configured 1500-byte MTU, so those frames are discarded. Packet volume is not the problem: utilization is only about 17 percent with no queue drops or collisions, and CRC errors are zero.",
-   "exhibit": "Interface GigabitEthernet1/0/12  --  Port Statistics\n---------------------------------------------------------------\nLink status:        up / up            Uptime:      14 days\nConfigured MTU:     1500 bytes         Speed/Duplex: 1000/full\nUtilization (5-min avg):  In 17%   Out 12%\n\nInput packets:      4,215,663          Output packets: 3,880,142\nInput errors:          82,441          CRC errors:             0\n  Giants (frames larger than MTU): 82,441\n  Runts:                                0\nOutput drops:               0          Collisions:             0\nInput queue drops:          0          Flow control:      off/off",
+   "exhibit": "Interface GigabitEthernet1/0/12  --  Port Statistics\n---------------------------------------------------------------\nLink status:        up / up            Uptime:      14 days\nConfigured MTU:     1500 bytes         Speed/Duplex: 1000/full\nUtilization (5-min avg):  In 17%   Out 12%\n\nInput packets:      4,215,663          Output packets: 3,880,142\nInput errors:          82,441          CRC errors:             0\n  Giants:                          82,441\n  Runts:                                0\nOutput drops:               0          Collisions:             0\nInput queue drops:          0          Flow control:      off/off",
    "exhibit_after": 0
   },
   {
@@ -10847,7 +10847,7 @@
    "id": "33432e766a",
    "source": "Master",
    "row": 629,
-   "text": "Switch 3 was recently added to an existing stack to extend connectivity to various parts of the network. After the update, new employees were not able to print to the main networked copiers from their workstations. Following are the port configurations for the switch stack in question:\nSwitch 1:Switch 2:Switch 3:\nWhich of the following should be configured to resolve the issue? (Choose two.)",
+   "text": "Switch 3 was recently added to an existing stack to extend connectivity to various parts of the network. After the update, new employees were not able to print to the main networked copiers from their workstations. Following are the port configurations for the switch stack in question:\nWhich of the following should be configured to resolve the issue? (Choose two.)",
    "type": "multi",
    "options": [
     "Enable the printer ports on Switch 3.",
@@ -11216,13 +11216,13 @@
    "options": [
     "Attenuation",
     "Interference",
-    "Decibel loss",
+    "Duplex mismatch",
     "Incorrect pinout"
    ],
    "answer": [
     0
    ],
-   "explanation": "The 146 m run far exceeds the 100 m Ethernet channel limit, so the signal weakens over distance and the link drops packets: that is attenuation. Decibel loss would point to connector or splice loss in an otherwise compliant link, and the wire map passed and no EMI sources were found, ruling out incorrect pinout and interference.",
+   "explanation": "The 146 m run far exceeds the 100 m Ethernet channel limit, so the signal weakens over distance and the link drops packets: that is attenuation. Both NICs negotiated 1000/full, ruling out a duplex mismatch, and the passing wire map and EMI survey rule out incorrect pinout and interference.",
    "exhibit": "Certification Test Report - Cat 6 UTP run, PC A to PC B\n---------------------------------------------------------------\nTotal channel length:   146 m (479 ft)  [TIA limit: 100 m]\nWire map:               PASS - T568B both ends, all 4 pairs correct\nSplit pairs / shorts:   None detected\nNEXT / crosstalk:       PASS\nEMI survey:             No motors, ballasts or power runs within 2 m\nCable type in path:     Solid copper UTP, no splices, no patch panels\nNIC negotiation:        PC A 1000/full, PC B 1000/full\nObserved throughput:    Frequent retransmissions, large transfers stall\nPing (1,000 packets):   118 lost, avg 46 ms, high jitter",
    "exhibit_after": 0
   },

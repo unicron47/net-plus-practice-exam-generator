@@ -8,6 +8,7 @@ Run with the project venv:  tools/explain/.venv/bin/python tools/explain/run.py 
   exhibit                                write replacement exhibits (key shown)       Opus 5, high
   verify                                 answer the repaired questions blind          Sonnet 5, medium
   explain --ids a,b                      explain an instructor-confirmed key          Opus 5, high
+  audit                                  blind audit of every exhibit question        Fable 5.1, high
   then: python3 tools/explain/check.py
 
 Add --direct for full-price immediate calls. Every stage prints an estimate first and refuses to submit above --max-usd (default $2).
@@ -21,8 +22,9 @@ import argparse, json, os, random, sys, time
 from common import (HERE, LETTERS, WORK, bank, exhibit_reasons, lead_in_index, letters, read,
                     with_exhibit, write)
 
-MODELS = {'sonnet': 'claude-sonnet-5', 'opus': 'claude-opus-5'}
-PRICE = {'claude-sonnet-5': (2.00, 10.00), 'claude-opus-5': (5.00, 25.00)}   # $/1M in, out
+MODELS = {'sonnet': 'claude-sonnet-5', 'opus': 'claude-opus-5', 'fable': 'claude-fable-5-1'}
+PRICE = {'claude-sonnet-5': (2.00, 10.00), 'claude-opus-5': (5.00, 25.00),
+         'claude-fable-5-1': (10.00, 50.00)}                              # $/1M in, out
 BATCH_DISCOUNT = 0.5
 KEY_PATH_FILE = os.path.join(HERE, 'key_path.local')           # gitignored: one line, the key file's path
 
@@ -41,6 +43,10 @@ SCHEMAS = {
     'adjudicate': items_schema(obj({'id': S, 'verdict': {'type': 'string', 'enum': ['key_correct', 'key_wrong', 'ambiguous']},
                                     'better_answer': {'type': 'array', 'items': LET}, 'explanation': S, 'note': S})),
     'explain': items_schema(obj({'id': S, 'explanation': S, 'concern': S})),
+    'audit': items_schema(obj({'id': S, 'answer': {'type': 'array', 'items': LET},
+                               'options': {'type': 'array', 'items': obj({'letter': LET, 'verdict': {
+                                   'type': 'string', 'enum': ['correct', 'incorrect', 'also_defensible']}, 'reason': S})},
+                               'sufficient': B_, 'unique': B_, 'issues': S, 'fix': S})),
     'exhibit': items_schema(obj({'id': S, 'exhibit_needed': B_, 'feasible': B_, 'exhibit': S, 'lead_in': S, 'explanation': S, 'note': S})),
 }
 # stage -> (system prompt, schema, model, effort, store, est. output tokens per question)
@@ -49,6 +55,7 @@ STAGES = {
     'pass2':   ('adjudicate.md', 'adjudicate', 'opus',   'high',   'pass2.json',    900),
     'exhibit': ('exhibit.md',    'exhibit',    'opus',   'high',   'exhibits.json', 2500),
     'explain': ('explain.md',    'explain',    'opus',   'high',   'explain.json',  300),
+    'audit':   ('audit.md',      'audit',      'fable',  'high',   'audit.json',    2000),
     'verify':  ('verify.md',     'answer',     'sonnet', 'medium', 'verify.json',   400),
 }
 
@@ -95,7 +102,11 @@ def select(stage, a, B):
     if stage == 'explain':    # instructor-confirmed key; explain it
         if not a.ids:
             sys.exit('explain needs --ids')
-        return [dict(payload(B[i]), key=letters(B[i]['answer'])) for i in a.ids.split(',') if i not in done]
+        return [dict(payload(q, with_exhibit(q['text'], q['exhibit'], q['exhibit_after']) if q.get('exhibit') else None),
+                     key=letters(q['answer'])) for i in a.ids.split(',') if (q := B[i]) and i not in done]
+    if stage == 'audit':      # every question that shows an exhibit, answered blind by a different model
+        return [payload(q, with_exhibit(q['text'], q['exhibit'], q['exhibit_after']))
+                for i, q in B.items() if q.get('exhibit') and i not in done]
     if stage == 'verify':     # the repaired question, answered blind
         ex = read('exhibits.json')
         out = []
@@ -129,7 +140,10 @@ def params(stage, chunk):
                 system=open(os.path.join(HERE, system)).read(),
                 thinking={'type': 'adaptive'},
                 output_config={'effort': effort, 'format': {'type': 'json_schema', 'schema': SCHEMAS[schema]}},
-                messages=[{'role': 'user', 'content': json.dumps(chunk, ensure_ascii=False)}])
+                messages=[{'role': 'user', 'content': json.dumps(chunk, ensure_ascii=False)}],
+                # Fable 5.1: on a policy refusal the API re-runs the request on a fallback model (direct calls only)
+                **({'betas': ['server-side-fallback-2026-06-01'], 'fallbacks': [{'model': 'claude-opus-4-8'}]}
+                   if model == 'fable' else {}))
 
 def submit(api, stage, chunks):
     from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
@@ -202,9 +216,11 @@ def direct(api, stage, chunks, jobs=5):
         i, chunk = i_chunk
         tag = f'{stage}-{i:03d}'
         try:
-            with api.messages.stream(**params(stage, chunk)) as s:
+            p = params(stage, chunk)
+            client_ns = api.beta.messages if 'betas' in p else api.messages
+            with client_ns.stream(**p) as s:
                 msg = s.get_final_message()
-            print(f'  {tag}: done ({msg.usage.output_tokens:,} output tokens)', flush=True)
+            print(f'  {tag}: done by {msg.model} ({msg.usage.output_tokens:,} output tokens)', flush=True)
             return tag, msg
         except anthropic.APIStatusError as e:
             print(f'  {tag}: API error {e.status_code}: {e.message} (re-run to retry)', file=sys.stderr)
@@ -223,6 +239,7 @@ def main():
     ap.add_argument('--chunk', type=int, default=20, help='questions per request')
     ap.add_argument('--max-usd', type=float, default=2.0, help='refuse to submit above this estimate')
     ap.add_argument('--dry-run', action='store_true')
+    ap.add_argument('--limit', type=int, help='only the first N questions (e.g. to measure cost)')
     ap.add_argument('--direct', action='store_true', help='full-price direct calls instead of a batch (faster, 2x cost)')
     a = ap.parse_args()
     os.makedirs(WORK, exist_ok=True)
@@ -234,6 +251,8 @@ def main():
         return collect(client(), a.stage, pending['id'])
 
     todo = select(a.stage, a, B)
+    if a.limit:
+        todo = todo[:a.limit]
     chunk = min(a.chunk, 8) if a.stage == 'exhibit' else a.chunk      # exhibits need long outputs
     chunks = [todo[i:i + chunk] for i in range(0, len(todo), chunk)]
     tin, tout, usd = estimate(a.stage, chunks)
