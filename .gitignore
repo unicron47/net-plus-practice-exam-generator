@@ -5,3 +5,13 @@ __pycache__/
 handoff.md
 resume-prompt.md
 tools/sources.local.txt
+tools/explain/work/
+tools/explain/.venv/
+# never commit source spreadsheets, Office lock files or secrets
+*.xlsx
+*.xls
+~$*
+.env
+*.key
+*api_key*
+*.local

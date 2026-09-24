@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
-"""Convert the ExamTopics xlsx files into data/questions.json for the adaptive exam app.
+"""Convert the master question spreadsheet into data/questions.json for the adaptive exam app.
 
-Re-run this whenever a spreadsheet changes:
+Columns: A question, B type, C-G options, H answer (option numbers, "1,4" for multi),
+I time (unused), J image link (unused), K answer explanation, L exhibit (a table or
+command output shown in a monospace box after the question's "...the following:" line).
+Columns M-O are the instructor's review notes and drafts; they are never published.
+P is the question id. Students' progress is stored per id, so a question keeps its
+progress when its wording is edited. A row with an empty P gets an id from a hash of
+its text; clearing P deliberately resets a question's progress.
+
+Re-run this whenever the spreadsheet changes:
     python3 tools/build_questions.py ["<a.xlsx>" "<b.xlsx>" ...] [out.json]
 With no arguments it reads the paths listed in tools/sources.local.txt (gitignored). Question IDs are a hash
 of the question text, so stats survive row reordering; when the same text appears
@@ -33,13 +41,54 @@ def cells(path):
                 val = shared[int(v.text)]
             else:
                 val = v.text
-            val = (val or '').strip()
+            # an exhibit keeps its alignment; everything else is trimmed
+            val = (val or '').strip('\n').rstrip() if col == 'L' else (val or '').strip()
             if val:
                 out[col] = val
         yield out
 
 def clean(s):
     return re.sub(r'\s+', ' ', s).strip()
+
+# Line breaks were lost when the questions were exported to Excel, so bullets and the
+# question stem run into the scenario text. Display-only: ids still hash clean(text).
+STEM = r'(?:Which of the following|Which of these|Based on the information|Afterward,)'
+MISSING_SPACE = r'\b(would|administrator|the|new|configured|an|this)(BEST|MOST|VPN|DHCP|AP|MTU|APIPA)\b'
+
+def format_text(t):
+    """Display text: line breaks typed in the cell are kept; lost ones are rebuilt; a bullet
+    list gets a blank line above and below it."""
+    t = re.sub(r'\s*[•✑]\s*', '\n• ', t)                           # bullets onto their own lines
+    t = re.sub(MISSING_SPACE, r'\1 \2', t)                          # "wouldBEST" -> "would BEST"
+    t = re.sub(r'(?<=[a-z)"’])\.(?=[A-Z][a-z])', '. ', t)            # "report.The" -> "report. The"
+    t = re.sub(r'(?<=[a-z)])\s*:\s*(?=[A-Z])', ':\n', t)             # "details:Switch" -> new line
+    t = re.sub(r'(?<=[a-z])(?=(?:The|This|However|After|Now) )', '\n', t)  # "• SwitchThe connection"
+    t = re.sub(r'(?<=[^\s\n])\s*(?=' + STEM + ')', '\n', t)           # stem glued to the scenario
+    out = []
+    for line in (l.strip() for l in t.split('\n')):
+        if not line:
+            continue
+        in_list = bool(out) and out[-1].startswith('• ')
+        if out and line.startswith('• ') != in_list:          # entering or leaving a bullet list
+            out.append('')
+        out.append(line)
+    return '\n'.join(out)
+
+STEM_RE = re.compile('^' + STEM)
+ANNOUNCE_RE = re.compile(r'following|details:|settings:|specifications:|displaying|shown', re.I)
+
+def lead_in_index(text):
+    """Line index after which an exhibit belongs: the empty "...following:" lead-in if there
+    is one, else the last line ending in ':', else just before the question stem."""
+    lines = text.split('\n')
+    for i, line in enumerate(lines):
+        nxt = next((l for l in lines[i + 1:] if l), '')           # skip blank spacer lines
+        if line.endswith(':') and ANNOUNCE_RE.search(line) and (not nxt or STEM_RE.match(nxt) or nxt.endswith(':')):
+            return i
+    colon = [i for i, l in enumerate(lines) if l.endswith(':')]
+    if colon:
+        return colon[-1]
+    return max(len(lines) - 2, 0)
 
 TYPES = ('multiple choice', 'checkbox')
 
@@ -72,12 +121,15 @@ def main(srcs, dest):
     for src in srcs:
         name = re.sub(r'^Net\s+ExamTopics\s+', '', os.path.splitext(os.path.basename(src))[0])
         for i, r in enumerate(read_rows(src), start=2):
+            if not r:                                   # blank row (formatting only)
+                continue
             fixed = unshift(r)
             if fixed:
                 repaired.append((name, i, r.get('B')))
                 r = fixed
 
-            text = clean(r.get('A', ''))
+            raw = r.get('A', '')
+            text = clean(raw)                           # single-line form: for the id hash and duplicates
             options = [clean(r[c]) for c in ('C', 'D', 'E', 'F', 'G') if r.get(c)]
             raw_answer = r.get('H', '')
             answer = [int(n) - 1 for n in re.findall(r'\d+', raw_answer)]
@@ -87,21 +139,27 @@ def main(srcs, dest):
                 continue
 
             # First occurrence wins, so existing student stats keep pointing at the same wording/options.
-            qid = hashlib.sha1(text.encode('utf-8')).hexdigest()[:10]
+            qid = r.get('P') or hashlib.sha1(text.encode('utf-8')).hexdigest()[:10]
             if qid in seen_ids:
                 skipped.append((name, i, text[:60], 'DUPLICATE of %s row %d' % seen_ids[qid]))
                 continue
             seen_ids[qid] = (name, i)
 
-            questions.append({
+            q = {
                 'id': qid,
                 'source': name,
                 'row': i,
-                'text': text,
+                'text': format_text('\n'.join(clean(l) for l in raw.split('\n'))),
                 'type': 'multi' if len(answer) > 1 or r.get('B', '').lower().startswith('checkbox') else 'single',
                 'options': options,
                 'answer': sorted(answer),
-            })
+            }
+            if r.get('K'):
+                q['explanation'] = clean(r['K'])
+            if r.get('L'):
+                q['exhibit'] = r['L']
+                q['exhibit_after'] = lead_in_index(q['text'])
+            questions.append(q)
 
     json.dump({'version': 1, 'count': len(questions), 'questions': questions},
               open(dest, 'w'), indent=1)
@@ -109,7 +167,10 @@ def main(srcs, dest):
     for src in srcs:
         print('  from', os.path.basename(src))
     print('  single:', sum(1 for q in questions if q['type'] == 'single'),
-          ' multi:', sum(1 for q in questions if q['type'] == 'multi'))
+          ' multi:', sum(1 for q in questions if q['type'] == 'multi'),
+          ' with explanation:', sum(1 for q in questions if 'explanation' in q),
+          ' reformatted:', sum(1 for q in questions if '\n' in q['text']),
+          ' with exhibit:', sum(1 for q in questions if 'exhibit' in q))
     for name, i, b in repaired:
         print(f'  REPAIRED {name} row {i}: cells shifted one column left (type cell was {b!r})')
     if skipped:
@@ -118,9 +179,8 @@ def main(srcs, dest):
             print('   %s row %s | %s | %s' % s)
 
 # Default spreadsheet paths live in a gitignored file so no local paths end up in the repo.
-# One path per line, in merge order, e.g.
-#   /path/to/Net ExamTopics Adaptive Test 2.xlsx
-#   /path/to/Net ExamTopics Adaptive Quiz 1.xlsx
+# One path per line (several are merged in order), e.g.
+#   /path/to/Net ExamTopics Master.xlsx
 LOCAL_SOURCES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sources.local.txt')
 
 if __name__ == '__main__':

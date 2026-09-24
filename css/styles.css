@@ -150,7 +150,7 @@ b, strong { font-weight: 650; }
 }
 .side { position: sticky; top: 78px; }
 @media (max-width: 900px) {
-  .exam-layout { grid-template-columns: 1fr; }
+  .exam-layout { grid-template-columns: minmax(0, 1fr); }
   .side { position: static; order: 2; }
 }
 
@@ -255,6 +255,13 @@ kbd {
 .qtext {
   font-size: 1.1rem; line-height: 1.62; color: var(--ink);
   letter-spacing: -.008em; margin-bottom: 22px; white-space: pre-wrap;
+}
+
+/* a table / command output that belongs to the question */
+.exhibit {
+  margin: 12px 0; padding: 12px 14px; overflow-x: auto; max-width: 100%;
+  font-family: var(--mono); font-size: .8rem; line-height: 1.5; white-space: pre;
+  color: var(--ink-2); background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px;
 }
 
 .options { display: flex; flex-direction: column; gap: 10px; }
@@ -446,7 +453,7 @@ kbd {
 
 .review .rq { display: flex; gap: 11px; align-items: baseline; }
 .review .rn { font-family: var(--mono); font-size: .85rem; color: var(--faint); flex: none; }
-.review .rtext { flex: 1; color: var(--ink); line-height: 1.55; }
+.review .rtext { flex: 1; min-width: 0; color: var(--ink); line-height: 1.55; white-space: pre-line; }
 
 .review .tag {
   font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
@@ -471,6 +478,15 @@ kbd {
   text-decoration-color: rgba(255,107,114,.45);
 }
 .review .mark { font-family: var(--mono); font-weight: 700; flex: none; width: 1em; }
+.review .why {
+  margin: 10px 0 0 2.1em; padding: 10px 14px; font-size: .9rem; line-height: 1.6;
+  color: var(--ink-2); background: var(--panel-2); border-left: 2px solid var(--line);
+  border-radius: 0 8px 8px 0;
+}
+.review .why-label {
+  display: block; margin-bottom: 3px; font-family: var(--mono); font-size: .7rem;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+}
 
 /* ─── modal ───────────────────────────────────────────────── */
 .modal {

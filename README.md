@@ -115,39 +115,48 @@ npm run serve      # then visit http://localhost:8000
 
 ## Updating the question bank
 
-The site reads [`data/questions.json`](data/questions.json), generated from two
-spreadsheets, *Net ExamTopics Adaptive Test 2* and *Net ExamTopics Adaptive Quiz 1*:
+The site reads [`data/questions.json`](data/questions.json), generated from one master
+spreadsheet, *Net ExamTopics Master*:
 
 ```bash
-python3 tools/build_questions.py "/path/to/Adaptive Test 2.xlsx" "/path/to/Adaptive Quiz 1.xlsx"
+python3 tools/build_questions.py "/path/to/Net ExamTopics Master.xlsx"
 ```
 
-Pass any number of spreadsheets; they are merged in the order given.
-To avoid retyping the paths, list them one per line in `tools/sources.local.txt`
-(gitignored) and run the script with no arguments.
+To avoid retyping the path, put it in `tools/sources.local.txt` (gitignored) and run the
+script with no arguments.
 
-Expected spreadsheet columns (row 1 is the header):
+Spreadsheet columns (row 1 is the header):
 
 | Column | Contents |
 |--------|----------|
 | A | Question text |
 | B | `Multiple Choice` or `Checkbox` |
 | C–G | Option 1 … Option 5 (blank options are ignored) |
-| H | Correct answer as an option number — `3`, or `1,4` for multi-answer |
+| H | Correct answer as an option number: `3`, or `1,4` for multi-answer |
 | I | Time in seconds (unused; the exam is timed as a whole) |
+| J | Image link (unused) |
+| K | Answer explanation, shown on the review screen after an exam |
+| L | Exhibit: a table or command output, shown in a monospace box after the question's "…the following:" line |
+| M–O | Review status, proposed explanation, proposed exhibit: working notes, **never published** |
 
-The converter uses **only the Python standard library** — no pip installs needed. It
-skips malformed rows and duplicates and prints what it skipped. When the same question
-text appears more than once, the first occurrence wins. Question IDs are a hash
+To approve a proposal, copy column N into K (or O into L), clear M and rebuild.
+
+The converter uses **only the Python standard library**, so no pip installs are needed. It
+skips malformed rows and duplicates and prints what it skipped. Question IDs are a hash
 of the question text, so **student progress survives rows being reordered, inserted or
-deleted** in the spreadsheet — as long as the wording doesn't change. Editing a
+deleted**, as long as the wording doesn't change. Editing a
 question's text makes it a new question with fresh statistics.
 
-Currently skipped: 5 duplicates, one inside *Test 2* (rows 15 / 69), and four
-*Quiz 1* questions (rows 175, 233, 276, 277) that repeat *Test 2* questions word for word
-with one different wrong answer. The *Test 2* versions are kept. *Quiz 1* row 329 has its
-cells shifted one column left; the converter detects this and reads it correctly.
+### Explanations and exhibits
 
+`tools/explain/` generated the explanations with the Claude API. For each question, the
+model answered **without seeing the answer key**. The explanation was only accepted when
+its answer matched the key, it was confident, and it passed checks for length (at most
+60 words), naming the correct answer, and not referring to options by letter (options
+are shuffled for students). Disagreements went to a second, more careful model call
+that saw the key. Some exhibits were lost when the questions were exported to Excel.
+Replacements were generated, then accepted only if a separate blind check picked the
+keyed answer. Everything else is left in columns M–O for the instructor.
 ---
 
 ## Design

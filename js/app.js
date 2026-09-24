@@ -232,7 +232,15 @@ function renderQuestion() {
 
   $('q-index').textContent = exam.idx + 1;
   $('q-total').textContent = exam.items.length;
-  $('q-text').textContent = q.text;
+  const [before, exhibit, after] = textParts(q);
+  const qText = $('q-text');
+  qText.textContent = before;
+  if (exhibit !== null) {
+    const pre = document.createElement('pre');
+    pre.className = 'exhibit';
+    pre.textContent = exhibit;
+    qText.append(pre, after);
+  }
   $('q-type').hidden = q.type !== 'multi';
   if (q.type === 'multi') {
     $('q-type').textContent = `Select ${q.answer.length} answers`;
@@ -339,6 +347,19 @@ function showResults() {
   show('results');
 }
 
+// A question's text split around its exhibit (a table / command output shown in a mono box).
+function textParts(q) {
+  if (!q.exhibit) return [q.text, null, ''];
+  const lines = q.text.split('\n');
+  const cut = q.exhibit_after + 1;
+  return [lines.slice(0, cut).join('\n'), q.exhibit, lines.slice(cut).join('\n')];
+}
+
+function reviewText(q) {
+  const [before, exhibit, after] = textParts(q);
+  return esc(before) + (exhibit === null ? '' : `<pre class="exhibit">${esc(exhibit)}</pre>${esc(after)}`);
+}
+
 function renderReview() {
   const onlyWrong = $('only-wrong').checked;
   const ol = $('review');
@@ -363,8 +384,10 @@ function renderReview() {
     }).join('');
 
     // number by position in the exam, so filtering does not renumber
+    const why = q.explanation
+      ? `<p class="why"><span class="why-label">Why</span>${esc(q.explanation)}</p>` : '';
     li.innerHTML = `<div class="rq"><b class="rn">${i + 1}.</b>` +
-                   `<span class="rtext">${esc(q.text)}</span>${tag}</div><ul>${opts}</ul>`;
+                   `<span class="rtext">${reviewText(q)}</span>${tag}</div><ul>${opts}</ul>${why}`;
     ol.appendChild(li);
   });
 
@@ -447,6 +470,11 @@ function beginExam(resume) {
   if (resume) {
     exam = load(KEY.exam(profile), null);
     if (!exam || exam.deadline <= Date.now()) { exam = null; }
+  }
+  if (exam) {                              // drop questions removed from the bank since the exam began
+    exam.items = exam.items.filter((it) => BY_ID.has(it.id));
+    exam.idx = Math.min(exam.idx, exam.items.length - 1);
+    if (!exam.items.length) exam = null;
   }
   if (!exam) newExam($('opt-shuffle').checked);
 
