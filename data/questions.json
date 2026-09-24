@@ -6413,7 +6413,7 @@
    "id": "2e510d8357",
    "source": "Master",
    "row": 373,
-   "text": "A user tries to ping 192.168.1.100 from the command prompt on the 192.168.2.101 network but gets the following response:\nWhich of the following needs to be configured for these networks to reach each other?",
+   "text": "A user tries to ping 192.168.1.100 from the command prompt on a host with the IP address 192.168.2.101 but gets the following response:\nWhich of the following needs to be configured for these networks to reach each other?",
    "type": "single",
    "options": [
     "Network address translation",
