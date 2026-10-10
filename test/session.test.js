@@ -16,7 +16,7 @@ function boot() {                       // simulates opening/reloading the page
   Object.defineProperty(window, 'localStorage', { value: {
     getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); },
     removeItem: k => { delete store[k]; } } });
-  window.eval(fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8'));
+  for (const f of ['js/pbq.js', 'js/pbq-ui.js', 'js/app.js']) window.eval(fs.readFileSync(path.join(ROOT, f), 'utf8'));
   const doc = window.document;
   return { window, doc, $: id => doc.getElementById(id),
            click: el => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })),

@@ -9,8 +9,12 @@
  * CONFIG — instructor-tunable knobs.  See README for a walkthrough.
  * ────────────────────────────────────────────────────────────── */
 const CONFIG = {
-  EXAM_SIZE: 40,            // questions per exam
+  EXAM_SIZE: 40,            // items per exam, PBQs included
   EXAM_MINUTES: 40,         // countdown length
+
+  // Performance-based questions open every exam, as on the real test (5 PBQs of 75 items,
+  // 75 minutes). 3 of 40 keeps the same share and the same minute-per-item pace.
+  PBQ_PER_EXAM: 3,
 
   // Weight of a question by how many times it has EVER been missed.
   // Index = miss count; the last entry is used for anything higher.
@@ -37,6 +41,8 @@ const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
  * ────────────────────────────────────────────────────────────── */
 let BANK = [];            // [{id,row,text,type,options,answer}]
 let BY_ID = new Map();
+let PBQS = [];            // performance-based questions (data/pbqs.json)
+let PBQ_BY_ID = new Map();
 let profile = '';
 let stats = {};           // qid -> {seen,right,wrong,streak}
 let exam = null;          // in-progress or just-finished exam
@@ -118,17 +124,42 @@ function drawWeighted(pool, n) {
  * the remainder is weighted-random over everything else — so new material keeps
  * appearing, but a student with a big miss list mostly sees their miss list.
  */
-function selectQuestions() {
+function selectQuestions(n) {
   const all = BANK.map((q) => q.id);
   const weak = all.filter(isWeak);
-  const reserve = Math.min(weak.length, Math.floor(CONFIG.EXAM_SIZE * CONFIG.MISSED_TARGET_RATIO));
+  const reserve = Math.min(weak.length, Math.floor(n * CONFIG.MISSED_TARGET_RATIO));
 
   const chosen = drawWeighted(weak, reserve);
   const taken = new Set(chosen);
   const rest = all.filter((id) => !taken.has(id));
 
-  return chosen.concat(drawWeighted(rest, CONFIG.EXAM_SIZE - chosen.length))
+  return chosen.concat(drawWeighted(rest, n - chosen.length))
                .sort(() => Math.random() - 0.5);
+}
+
+/**
+ * PBQs for one exam: different types, favouring ones not tried yet or scored low, and
+ * avoiding the ones from the previous exam where possible.
+ */
+function selectPBQs(n) {
+  const lastExam = Math.max(0, ...PBQS.map((p) => (stats[p.id] && stats[p.id].lastAt) || 0));
+  const weight = (p) => {
+    const s = stats[p.id];
+    if (!s || !s.seen) return 4;
+    return (1 + 4 * (1 - s.last)) * (s.lastAt === lastExam ? 0.2 : 1);
+  };
+  const picked = [], types = new Set();
+  let pool = PBQS.slice();
+  while (picked.length < n && pool.length) {
+    const fresh = pool.filter((p) => !types.has(p.type));
+    const from = fresh.length ? fresh : pool;
+    const w = from.map(weight);
+    let r = Math.random() * w.reduce((a, b) => a + b, 0), i = 0;
+    while (i < from.length - 1 && (r -= w[i]) > 0) i++;
+    picked.push(from[i]); types.add(from[i].type);
+    pool = pool.filter((p) => p !== from[i]);
+  }
+  return picked.map((p) => p.id);
 }
 
 function shuffled(n) {
@@ -144,19 +175,20 @@ function shuffled(n) {
  * Exam lifecycle
  * ────────────────────────────────────────────────────────────── */
 function newExam(shuffleOptions) {
-  const ids = selectQuestions();
+  const pbqs = selectPBQs(Math.min(CONFIG.PBQ_PER_EXAM, PBQS.length));
+  const ids = selectQuestions(CONFIG.EXAM_SIZE - pbqs.length);
   exam = {
     started: Date.now(),
     deadline: Date.now() + CONFIG.EXAM_MINUTES * 60000,
     idx: 0,
     finished: false,
-    items: ids.map((id) => ({
+    items: pbqs.map((id) => ({ id, kind: 'pbq', ans: {}, place: {}, flagged: false })).concat(ids.map((id) => ({
       id,
       order: shuffleOptions ? shuffled(BY_ID.get(id).options.length)
                             : BY_ID.get(id).options.map((_, i) => i),
       picked: [],       // original option indices
       flagged: false,
-    })),
+    }))),
   };
   persistExam();
 }
@@ -165,6 +197,12 @@ function clearExam() { localStorage.removeItem(KEY.exam(profile)); }
 
 const current = () => exam.items[exam.idx];
 const qOf = (item) => BY_ID.get(item.id);
+const isPbq = (item) => item.kind === 'pbq';
+const pbqOf = (item) => PBQ_BY_ID.get(item.id);
+const isAnswered = (item) => (isPbq(item)
+  ? Object.keys(item.ans || {}).length > 0 || Object.keys(item.place || {}).length > 0
+  : item.picked.length > 0);
+const itemTitle = (item) => (isPbq(item) ? `PBQ: ${pbqOf(item).title}` : qOf(item).text);
 const sameSet = (a, b) => a.length === b.length && a.every((v) => b.includes(v));
 const isRight = (item) => sameSet(item.picked, qOf(item).answer);
 
@@ -173,17 +211,26 @@ function gradeAndFinish() {
   exam.finished = true;
   exam.ended = Date.now();
 
-  let score = 0;
+  let score = 0, pbqEarned = 0, pbqCount = 0;
   for (const item of exam.items) {
     const s = statOf(item.id);
     s.seen++;
+    if (isPbq(item)) {                       // partial credit, like CompTIA's PBQs
+      const r = PBQ.grade(pbqOf(item), item);
+      item.result = { earned: r.earned, total: r.total, fraction: r.fraction };
+      s.last = r.fraction; s.best = Math.max(s.best || 0, r.fraction); s.lastAt = exam.ended;
+      score += r.fraction; pbqEarned += r.fraction; pbqCount++;
+      continue;
+    }
     if (item.picked.length && isRight(item)) { s.right++; s.streak++; score++; }
     else { s.wrong++; s.streak = 0; }
   }
-  exam.score = score;
+  exam.score = Math.round(score * 10) / 10;
+  exam.pbq = pbqCount ? { count: pbqCount, fraction: pbqEarned / pbqCount } : null;
 
   const h = history();
-  h.push({ at: exam.ended, score, total: exam.items.length,
+  h.push({ at: exam.ended, score: exam.score, total: exam.items.length,
+           pbq: exam.pbq ? Math.round(exam.pbq.fraction * 100) : undefined,
            seconds: Math.round((exam.ended - exam.started) / 1000) });
   save(KEY.hist(profile), h);
   persistStats();
@@ -228,10 +275,26 @@ function show(view) {
 
 function renderQuestion() {
   const item = current();
-  const q = qOf(item);
-
   $('q-index').textContent = exam.idx + 1;
   $('q-total').textContent = exam.items.length;
+  const card = document.querySelector('.question-card');
+  card.classList.toggle('is-pbq', isPbq(item));
+  const flagBtn0 = $('btn-flag');
+  flagBtn0.setAttribute('aria-pressed', String(item.flagged));
+  flagBtn0.querySelector('.flag-label').textContent = item.flagged ? 'Flagged' : 'Flag for review';
+  if (isPbq(item)) {
+    $('q-type').hidden = true;
+    $('q-options').innerHTML = '';
+    PBQUI.render($('q-text'), pbqOf(item), item, () => { persistExam(); renderSidebar(); });
+    $('btn-prev').disabled = exam.idx === 0;
+    $('btn-next').disabled = exam.idx === exam.items.length - 1;
+    $('btn-clear').disabled = !isAnswered(item);
+    $('btn-clear').textContent = 'Reset PBQ';
+    renderSidebar();
+    return;
+  }
+  $('btn-clear').textContent = 'Clear answer';
+  const q = qOf(item);
   const [before, exhibit, after] = textParts(q);
   const qText = $('q-text');
   qText.textContent = before;
@@ -284,6 +347,7 @@ function choose(orig) {
 }
 
 function goTo(i) {
+  PBQUI.closePanel();
   exam.idx = Math.max(0, Math.min(exam.items.length - 1, i));
   persistExam();
   renderQuestion();
@@ -296,9 +360,9 @@ function renderSidebar() {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = i + 1;
-    b.className = [item.picked.length ? 'answered' : '', item.flagged ? 'flagged' : '',
-                   i === exam.idx ? 'current' : ''].filter(Boolean).join(' ');
-    b.title = `Question ${i + 1}${item.flagged ? ' — flagged' : ''}`;
+    b.className = [isAnswered(item) ? 'answered' : '', item.flagged ? 'flagged' : '',
+                   i === exam.idx ? 'current' : '', isPbq(item) ? 'pbq-cell' : ''].filter(Boolean).join(' ');
+    b.title = `${isPbq(item) ? 'PBQ' : 'Question'} ${i + 1}${item.flagged ? ' — flagged' : ''}`;
     b.addEventListener('click', () => goTo(i));
     grid.appendChild(b);
   });
@@ -314,13 +378,13 @@ function renderSidebar() {
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.type = 'button';
-      b.innerHTML = `<b>Q${i + 1}</b><span>${esc(qOf(it).text.slice(0, 70))}</span>`;
+      b.innerHTML = `<b>Q${i + 1}</b><span>${esc(itemTitle(it).slice(0, 70))}</span>`;
       b.addEventListener('click', () => goTo(i));
       li.appendChild(b);
       list.appendChild(li);
     }
   }
-  $('answered-count').textContent = exam.items.filter((it) => it.picked.length).length;
+  $('answered-count').textContent = exam.items.filter(isAnswered).length;
   document.querySelector('.progress-line').lastChild.textContent =
     ` of ${exam.items.length} answered`;
 }
@@ -331,6 +395,9 @@ function showResults() {
   const pct = Math.round((exam.score / total) * 100);
   $('score-pct').textContent = pct + '%';
   $('score-raw').textContent = `${exam.score} / ${total}`;
+  $('score-pbq').hidden = !exam.pbq;
+  if (exam.pbq) $('score-pbq').textContent =
+    `PBQs: ${Math.round(exam.pbq.fraction * 100)}% across ${exam.pbq.count} (partial credit counts toward the score)`;
   $('score-ring').style.setProperty('--pct', pct);
 
   const secs = Math.round((exam.ended - exam.started) / 1000);
@@ -338,7 +405,7 @@ function showResults() {
   $('score-time').textContent =
     `Time used: ${Math.floor(secs / 60)}m ${secs % 60}s${ranOut ? ' — time expired' : ''}`;
 
-  const missed = total - exam.score;
+  const missed = exam.items.filter((it) => !isPbq(it) && !isRight(it)).length;
   $('score-note').textContent = missed
     ? `The ${missed} question${missed === 1 ? '' : 's'} you missed are now weighted to come back on your next exam.`
     : 'Perfect score — these questions will start fading out of your rotation.';
@@ -366,6 +433,18 @@ function renderReview() {
   ol.innerHTML = '';
 
   exam.items.forEach((item, i) => {
+    if (isPbq(item)) {
+      const r = item.result || PBQ.grade(pbqOf(item), item);
+      if (onlyWrong && r.fraction === 1) return;
+      const li = document.createElement('li');
+      const pct = Math.round(r.fraction * 100);
+      const tag = `<span class="tag ${pct === 100 ? 'ok' : pct ? 'skip' : 'no'}">${pct}%</span>`;
+      li.innerHTML = `<div class="rq"><b class="rn">${i + 1}.</b><span class="rtext"><b>PBQ:</b> ${esc(pbqOf(item).title)}` +
+                     ` <span class="muted">(${r.earned} of ${r.total} points)</span></span>${tag}</div>` +
+                     PBQUI.reviewHTML(pbqOf(item), item);
+      ol.appendChild(li);
+      return;
+    }
     const q = qOf(item);
     const right = isRight(item);
     if (onlyWrong && right) return;
@@ -472,7 +551,7 @@ function beginExam(resume) {
     if (!exam || exam.deadline <= Date.now()) { exam = null; }
   }
   if (exam) {                              // drop questions removed from the bank since the exam began
-    exam.items = exam.items.filter((it) => BY_ID.has(it.id));
+    exam.items = exam.items.filter((it) => (isPbq(it) ? PBQ_BY_ID.has(it.id) : BY_ID.has(it.id)));
     exam.idx = Math.min(exam.idx, exam.items.length - 1);
     if (!exam.items.length) exam = null;
   }
@@ -485,7 +564,7 @@ function beginExam(resume) {
 }
 
 function confirmSubmit() {
-  const blank = exam.items.filter((it) => !it.picked.length).length;
+  const blank = exam.items.filter((it) => !isAnswered(it)).length;
   const flagged = exam.items.filter((it) => it.flagged).length;
   const bits = [];
   if (blank) bits.push(`${blank} unanswered`);
@@ -549,7 +628,14 @@ function wire() {
 
   $('btn-prev').addEventListener('click', () => goTo(exam.idx - 1));
   $('btn-next').addEventListener('click', () => goTo(exam.idx + 1));
-  $('btn-clear').addEventListener('click', () => { current().picked = []; persistExam(); renderQuestion(); });
+  $('btn-clear').addEventListener('click', () => {
+    const item = current();
+    if (!isPbq(item)) { item.picked = []; persistExam(); renderQuestion(); return; }
+    openModal('Reset this PBQ?', 'This clears every setting and placement you made in this PBQ.', 'Reset', () => {
+      item.ans = {}; item.place = {}; item.term = {};
+      persistExam(); renderQuestion();
+    });
+  });
   $('btn-flag').addEventListener('click', () => {
     current().flagged = !current().flagged;
     persistExam();
@@ -584,11 +670,12 @@ function wire() {
 
   document.addEventListener('keydown', (e) => {
     if (!$('modal').hidden && e.key === 'Escape') return closeModal();
-    if ($('view-exam').hidden || e.target.tagName === 'INPUT') return;
+    if ($('view-exam').hidden || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) return;
+    if (!$('modal').hidden || document.querySelector('.pbq-overlay:not([hidden])')) return;
     if (e.key === 'ArrowLeft') goTo(exam.idx - 1);
     else if (e.key === 'ArrowRight') goTo(exam.idx + 1);
     else if (e.key.toLowerCase() === 'f') { current().flagged = !current().flagged; persistExam(); renderQuestion(); }
-    else if (/^[1-6]$/.test(e.key)) {
+    else if (/^[1-6]$/.test(e.key) && !isPbq(current())) {
       const pos = Number(e.key) - 1;
       const item = current();
       if (pos < item.order.length) choose(item.order[pos]);
@@ -610,6 +697,11 @@ async function init() {
     const data = await res.json();
     BANK = data.questions;
     BY_ID = new Map(BANK.map((q) => [q.id, q]));
+    try {                                  // PBQs are optional: without them exams are all multiple choice
+      const pr = await fetch('data/pbqs.json', { cache: 'no-cache' });
+      PBQS = ((await pr.json()) || {}).pbqs || [];
+    } catch { PBQS = []; }
+    PBQ_BY_ID = new Map(PBQS.map((p) => [p.id, p]));
   } catch (e) {
     $('view-home').innerHTML =
       '<section class="card"><h1>Could not load the question bank</h1>' +

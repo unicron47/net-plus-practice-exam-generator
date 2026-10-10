@@ -32,9 +32,14 @@
       to come back more often &mdash; and the more times you miss a question, the more likely
       it is to reappear until you get it right twice in a row.
     </p>
+    <p class="lede">
+      Like the real exam, every practice exam <strong>opens with performance-based questions (PBQs)</strong>:
+      hands-on tasks such as configuring access points, fixing routing or building an ACL. They share the
+      clock with the multiple-choice questions and earn partial credit.
+    </p>
 
     <ul class="specs">
-      <li><b>40</b><span>questions</span></li>
+      <li><b>40</b><span>items, 3 PBQs first</span></li>
       <li><b>40</b><span>minutes</span></li>
       <li><b id="spec-bank">&ndash;</b><span>in the bank</span></li>
       <li><b>Adaptive</b><span>retry weighting</span></li>
@@ -137,6 +142,7 @@
       <div id="score-ring" class="ring"><b id="score-pct">0%</b></div>
       <div class="score-facts">
         <p><b id="score-raw">0 / 40</b> correct</p>
+        <p id="score-pbq" class="muted" hidden></p>
         <p id="score-time" class="muted"></p>
         <p id="score-note" class="muted"></p>
       </div>
@@ -171,6 +177,8 @@
   <span id="foot-count"></span> question bank &middot; progress stored locally in your browser
 </footer>
 
+<script src="js/pbq.js"></script>
+<script src="js/pbq-ui.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

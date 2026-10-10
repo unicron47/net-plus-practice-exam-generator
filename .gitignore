@@ -6,6 +6,7 @@ handoff.md
 resume-prompt.md
 tools/sources.local.txt
 tools/explain/work/
+tools/pbq/work/
 tools/explain/.venv/
 # never commit source spreadsheets, Office lock files or secrets
 *.xlsx

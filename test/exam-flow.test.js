@@ -23,7 +23,7 @@ Object.defineProperty(window, 'localStorage', { value: {
   removeItem: k => { delete store[k]; }, clear: () => { for (const k in store) delete store[k]; },
 }});
 
-window.eval(fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8'));
+for (const f of ['js/pbq.js', 'js/pbq-ui.js', 'js/app.js']) window.eval(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 
 const $ = id => doc.getElementById(id);
 const click = el => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
